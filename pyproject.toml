@@ -1,0 +1,23 @@
+[project]
+name = "arcsettle"
+version = "0.1.0"
+description = "The reserve-aware operator agent for ArcSettle, a USDC settlement rail on Arc that cannot settle past its proven reserves."
+requires-python = ">=3.10"
+# agent-core is vendored under arcsettle/agent_core, so there is no install-time
+# dependency on the monorepo package.
+dependencies = []
+
+[project.optional-dependencies]
+# Live (read-only) chain mode needs no extra package: JSON-RPC goes over urllib,
+# and Keccak-256 / ABI encoding live in arcsettle/abi.py, pinned by tests.
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+arcsettle = "arcsettle.main:cli"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["arcsettle*", "agent_core*"]
