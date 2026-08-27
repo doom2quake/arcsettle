@@ -1,0 +1,190 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{hyperref}
+\usepackage{listings}
+\usepackage{xcolor}
+\usepackage{enumitem}
+
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  columns=fullflexible,
+  keepspaces=true,
+  showstringspaces=false
+}
+
+\title{ArcSettle: Reserve-Gated USDC Settlement with\\ On-Chain Proof-of-Reserves on Arc}
+\author{Dipankar Sarkar \\ \small doom2quake}
+\date{August 2026}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Fiat-backed stablecoins settle on-chain but prove solvency off-chain. The chain sees
+tokens move; it does not see whether those tokens are backed at the instant they are
+settled. That gap between reported reserves and reserves proven \emph{right now} is
+where depegs and insolvency events live, and it sharpens the moment an autonomous
+treasury agent settles or mints on a schedule against a figure it last read. We present
+ArcSettle, a settlement rail for Arc, Circle's settlement chain, whose every settlement
+is gated on-chain by a signed proof-of-reserves attestation: settled supply provably
+cannot exceed the USDC reserves that have actually been proven. A redemption does
+\emph{not} reopen settlement headroom until a new attestation has observed the outflow,
+which closes a redeem-then-resettle loop that naive reserve gates admit. A reserve-aware
+operator agent runs the same gate off-chain first, so a doomed settlement never spends
+gas. This paper describes the design and the milestone-1 implementation: two
+self-contained Solidity contracts and an operator agent, verified by 59 Solidity tests
+and 75 Python tests. All work is Arc testnet only; no mainnet, no live broadcast, no
+users, and no audit (Section~\ref{sec:limits}).
+\end{abstract}
+
+\section{Problem}
+A regulated dollar stablecoin such as USDC~\cite{usdc} holds reserves at a bank and
+asserts that circulating supply never exceeds them. The assertion is an off-chain
+attestation; the chain enforces nothing about it. Three failure shapes follow. First,
+an attestation \emph{lags}: supply is settled against a reserve figure that a bank
+outflow has already invalidated. Second, a \emph{redemption} frees mint or settlement
+headroom the instant supply falls, before the corresponding reserve outflow is observed,
+so an operator can redeem, move the freed collateral out, and re-settle against the same
+stale proof. Third, a \emph{stale or future-dated} timestamp is treated as eternally
+fresh. Anyone who accepts the token as settlement --- a merchant, a payment processor, a
+treasury desk --- wears these gaps and cannot see them until they have already cost
+something.
+
+The failure sharpens under an autonomous agent on the treasury. An agent that
+rebalances or settles on a schedule will, unless something stops it, submit against
+whatever reserve figure it last read, or worse against a figure a redemption has already
+invalidated. ``We never settle past proven reserves'' has to be an on-chain invariant
+the agent cannot argue its way around, not a policy in a runbook.
+
+\section{Why Arc}
+Arc is Circle's own settlement chain, with USDC as native gas and value and first-class
+access to Circle's settlement primitives (CCTP~\cite{cctp}, Wallets,
+Gateway)~\cite{circlearc}. That makes it the natural home for a proof-of-reserves
+settlement rail: the reserve asset, the settled asset, and the gas asset are the same
+regulated dollar, so the invariant ``circulating never exceeds attested reserves'' is
+expressed in one unit end to end, with no bridge-risk seam in the middle of the
+guarantee. On a general-purpose chain this product is a bolt-on; on Arc it is native to
+how value already moves. Because balances track USDC's native six decimals, no
+unit-conversion step sits between the proof and the gate.
+
+\section{Design}
+ArcSettle is two self-contained contracts and an operator agent. The invariant is:
+\[
+\text{totalSupply} + \text{amount} \;\le\; \text{effectiveReserves},
+\]
+checked on every settlement, where
+\[
+\text{effectiveReserves} =
+\begin{cases}
+0 & \text{if the attestation is stale or future-dated} \\
+\max(0,\; R - D) & \text{otherwise,}
+\end{cases}
+\]
+$R$ is the attested USDC reserve figure, and $D$ is redemption debt: USDC redeemed that
+the current attestation has not yet accounted for.
+
+\subsection{The proof path: \texttt{ReserveAttestationOracle}}
+Reserve figures do not enter the oracle because a privileged account says so. They enter
+because someone presents an EIP-712~\cite{eip712} signature from a registered attestor
+over $(\text{reserves}, \text{attestedAt}, \text{nonce})$. The contract recovers the
+signer on-chain and refuses: unknown signers; replays (a strictly incrementing nonce);
+malleable signatures (low-$s$ check, cf.\ EIP-2098~\cite{eip2098}); wrong-length or
+bad-$v$ signatures; and backdated or future-dated attestations. Submission is
+permissionless --- the signature, not the caller, is the authority --- so liveness never
+depends on one relayer's key. The attestor set is the only trust root, and it is governed
+asymmetrically: \emph{adding} an attestor (the direction that could prove reserves out of
+nothing) is a two-day timelocked, publicly announced change; \emph{removing} one (which
+can only shrink what the oracle believes) is immediate, so a leaked key is revocable in
+the block it is discovered. The digest is bound to the chain id and the contract address,
+so an attestation signed for one deployment cannot be replayed against another.
+
+\subsection{The gate: \texttt{ArcSettlement}}
+\texttt{ArcSettlement} is a minimal, correct ERC-20~\cite{eip20} settlement-claim token
+(six decimals, checked arithmetic, custom errors, events on every state change) whose
+\texttt{settle} function reverts with \texttt{InsufficientReserves},
+\texttt{StaleAttestation}, or \texttt{FutureAttestation} as appropriate. Three properties
+are load-bearing:
+
+\begin{enumerate}[leftmargin=1.4em]
+\item \textbf{The operator cannot conjure headroom.} The oracle and the freshness bound
+change only through a two-step, two-day-timelocked proposal that is public the moment it
+is proposed, and \texttt{maxAttestationAge} is clamped to $[1\text{ min}, 7\text{ days}]$,
+so ``turn the freshness check off'' is not a reachable state.
+\item \textbf{Redemption does not silently reopen headroom.} Redeeming frees supply but
+the freed amount is booked as \texttt{pendingRedemptions} and subtracted from attested
+reserves until a \emph{new} attestation (higher \texttt{attestationId}) lands that has
+observed the outflow. This is the defence against the redeem-move-collateral-resettle
+attack.
+\item \textbf{Time is handled defensively.} A future-dated timestamp reverts instead of
+reading as eternally fresh, and freshness is computed as
+\texttt{block.timestamp - attestedAt} so no addition can overflow.
+\end{enumerate}
+
+Every \texttt{IReserveOracle} getter is \texttt{view}, so the gate reads the oracle with
+\texttt{STATICCALL}; a malicious oracle that tries to re-enter \texttt{settle} while being
+read cannot change state, and the settlement fails closed.
+
+\subsection{The operator agent}
+The agent (\texttt{arcsettle/}) mirrors the on-chain gate off-chain and refuses a
+settlement that would exceed proven reserves rather than broadcasting a doomed
+transaction. Ordering is deliberate: an amount outside the \texttt{uint256} domain is
+rejected first; then the reserve pre-check; and only a settlement that will actually be
+submitted consumes a slot from an action limiter, so a burst of bad proposals cannot lock
+out a good one. Every decision is written to an audit trail. In live mode the pre-check is
+a real \texttt{eth\_call} dry-run whose revert reason is the contract's own custom error,
+not a local guess.
+
+\section{Implementation and evaluation}
+The contracts target solc 0.8.24 and are self-contained (no external Solidity library),
+so the security surface is auditable in two files. The agent has no third-party runtime
+dependency: Keccak-256~\cite{keccak}, selectors, and ABI word codecs are implemented in
+about a hundred lines and pinned to published test vectors, so ``live mode'' can never
+degrade into an import error.
+
+We evaluate by test, using Foundry~\cite{foundry} for the contracts:
+
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{59 Solidity tests} (\texttt{forge test}): 36 on the settlement gate (the
+reserve invariant, freshness, redemption accounting, timelocked oracle rotation,
+re-entrancy, ERC-20 plumbing, and a supply-versus-reserves fuzz test) and 23 on the
+oracle (EIP-712 recovery, replay, malleability, backdating, and the timelocked attestor
+set). Each defence has a test that goes red when the defence is removed.
+\item \textbf{75 Python tests} (\texttt{pytest}): the operator agent against an offline
+model of the contract, the dependency-free ABI layer pinned to solc's own selectors, and
+live-mode configuration validation and revert decoding against a fake node. Many carry a
+named Solidity counterpart, so the two suites read side by side.
+\end{itemize}
+
+The redeem-then-resettle defence is the sharpest test:
+\texttt{test\_RedeemThenResettleAgainstOldAttestationReverts} settles $10^6$ USDC against
+$10^6$ reserves, redeems $4\times10^5$, restates the same proof (no new id) as if the USDC
+had been moved out, and asserts the re-settle reverts, leaving supply at $6\times10^5$.
+
+\section{Limitations}\label{sec:limits}
+This is milestone 1, and the honest scope is narrow.
+\begin{itemize}[leftmargin=1.4em]
+\item \textbf{No mainnet}, and none planned under this grant. All work is Arc testnet only;
+the contract is not deployed anywhere yet (testnet deployment is milestone 2).
+\item \textbf{No live broadcast.} Live mode is read-only: reads and settle dry-runs are
+real \texttt{eth\_call}s, but broadcasting a signed settlement needs a funded testnet key
+and a signer this repo does not ship. That path, with a Circle-primitive custody seam, is
+milestone 3.
+\item \textbf{No users, no revenue, no audit, no partnership with Circle.} The substitute
+for traction is mutation-tested code and a candid scope map, not usage numbers.
+\end{itemize}
+
+\section{Conclusion}
+ArcSettle makes ``an agent provably cannot settle past proven reserves'' an on-chain
+invariant on Arc, denominated end to end in USDC, with a redemption defence that naive
+reserve gates lack and an operator agent that never burns gas on a settlement the chain
+would reject. Milestone 1 delivers the contract and the proof path, tested. The durable
+contribution is a standard, tested answer to how an agent settles in USDC on Arc without
+ever exceeding proven reserves, established before mainnet.
+
+\bibliographystyle{plain}
+\bibliography{references}
+
+\end{document}
