@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use ArcSettle, please cite it as below."
+title: "ArcSettle: Reserve-Gated USDC Settlement with On-Chain Proof-of-Reserves on Arc"
+authors:
+  - family-names: Sarkar
+    given-names: Dipankar
+year: 2026
+license: MIT
+url: "https://github.com/doom2quake/arcsettle"
+repository-code: "https://github.com/doom2quake/arcsettle"
+abstract: >-
+  ArcSettle is a USDC settlement rail for Arc, Circle's settlement chain, whose
+  every settlement is gated on-chain by a signed proof-of-reserves attestation:
+  settled supply provably cannot exceed the USDC reserves that have actually been
+  proven, and a redemption does not reopen settlement headroom until a new
+  attestation has observed the outflow. A reserve-aware operator agent runs the
+  same gate off-chain first, so an autonomous treasury never spends gas on a
+  settlement the contract would revert. Milestone 1: the reserve-gate contract and
+  the EIP-712 attestation oracle, tested with forge. Arc testnet only.
