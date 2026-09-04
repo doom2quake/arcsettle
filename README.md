@@ -13,7 +13,7 @@ one unit end to end, with no bridge seam in the middle of the guarantee.
 EIP-712 attestation oracle, ported to Arc and denominated in USDC. Arc testnet only,
 never mainnet.
 
-**[▶ Live demo](https://doom2quake.github.io/arcsettle/ui/)**  ·  **[Watch the 90s walkthrough](https://youtu.be/ARCSETTLE_VIDEO)**  ·  **[Paper (PDF)](paper/paper.pdf)**  ·  **[Deck (PDF)](deck/deck.pdf)**  ·  Built for **[Circle's Arc](https://www.circle.com/grant)**
+**[▶ Live demo](https://doom2quake.github.io/arcsettle/ui/)**  ·  **[Watch the 90s walkthrough](https://youtu.be/BX2hAUwU_zM)**  ·  **[Paper (PDF)](paper/paper.pdf)**  ·  **[Deck (PDF)](deck/deck.pdf)**  ·  Built for **[Circle's Arc](https://www.circle.com/grant)**
 
 Read [docs/LIMITATIONS.md](docs/LIMITATIONS.md) first for the short version of what is
 proved, what is simulated, and what is not built. Nothing on this page contradicts it.
@@ -146,7 +146,7 @@ The full milestone-mapped write-up is in [docs/PROPOSAL.md](docs/PROPOSAL.md).
   and no invented transaction hashes.
 - **Walkthrough video:** [`docs/arcsettle-demo.mp4`](docs/arcsettle-demo.mp4), a ~90s narrated
   tour of the invariant, the redemption defence, the architecture, and the grant roadmap
-  (also on [YouTube](https://youtu.be/ARCSETTLE_VIDEO)).
+  (also on [YouTube](https://youtu.be/BX2hAUwU_zM)).
 - **Demo script:** `DEMO.md`, the recording kit.
 
 [![ArcSettle UI](docs/ui.png)](https://doom2quake.github.io/arcsettle/ui/)
