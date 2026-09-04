@@ -13,6 +13,8 @@ one unit end to end, with no bridge seam in the middle of the guarantee.
 EIP-712 attestation oracle, ported to Arc and denominated in USDC. Arc testnet only,
 never mainnet.
 
+**[▶ Live demo](https://doom2quake.github.io/arcsettle/ui/)**  ·  **[Watch the 90s walkthrough](https://youtu.be/ARCSETTLE_VIDEO)**  ·  **[Paper (PDF)](paper/paper.pdf)**  ·  **[Deck (PDF)](deck/deck.pdf)**  ·  Built for **[Circle's Arc](https://www.circle.com/grant)**
+
 Read [docs/LIMITATIONS.md](docs/LIMITATIONS.md) first for the short version of what is
 proved, what is simulated, and what is not built. Nothing on this page contradicts it.
 
@@ -115,16 +117,39 @@ explicitly in live mode. That path is milestone 3. See [docs/LIMITATIONS.md](doc
 
 Every defence in this repo has a test that fails without it.
 
+## Built for Arc and the Circle ecosystem
+
+ArcSettle is a candidate entry to the [Circle Developer Grants](https://www.circle.com/grant)
+programme, built for **[Arc](https://www.circle.com/grant)**, Circle's settlement chain, and
+the [Circle Developer Platform](https://developers.circle.com/). It is an application, not an
+accepted grant: there is no partnership with Circle and no endorsement, and nothing here should
+be read as one.
+
+The reason it belongs on Arc rather than a general-purpose chain is that on Arc the reserve
+asset, the settled asset, and gas are the same regulated dollar, [USDC](https://www.circle.com/usdc).
+The invariant "settled claims never exceed attested USDC reserves" is then expressed in one unit
+end to end, with no bridge seam in the middle of the guarantee. The milestone roadmap integrates
+first-class Circle primitives at the point they are needed: the funded testnet signer and custody
+seam in milestone 3 is where [Circle Wallets / Gateway](https://developers.circle.com/) and
+[CCTP](https://developers.circle.com/stablecoins/cctp-getting-started) come in. Everything in this
+repo is Arc **testnet only**, with no mainnet deployment and no real funds.
+
+The full milestone-mapped write-up is in [docs/PROPOSAL.md](docs/PROPOSAL.md).
+
 ## Paper, deck & UI
 
-- **Paper:** `paper/paper.tex`, a short technical write-up (build: `tectonic paper/paper.tex` or Overleaf).
-- **Deck:** `deck/deck.md`, a Marp slide deck (build: `marp deck/deck.md --pdf`).
-- **UI:** `ui/index.html`, the interactive reserves-gauge demo (opens offline, `file://`).
-  It is a browser simulation and says so on the page; it shows the contract's real event
-  signatures, `topic0` hashes and error selectors, and no invented transaction hashes.
-- **Demo:** `DEMO.md`, the recording kit for the ~75s video.
+- **[Paper (PDF)](paper/paper.pdf):** `paper/paper.tex`, a short technical write-up (rebuild: `tectonic paper/paper.tex`).
+- **[Deck (PDF)](deck/deck.pdf):** `deck/deck.md`, a Marp slide deck (rebuild: `marp deck/deck.md --pdf`).
+- **[Live demo](https://doom2quake.github.io/arcsettle/ui/):** `ui/index.html`, the interactive
+  reserves-gauge demo (also opens offline over `file://`). It is a browser simulation and says so
+  on the page; it shows the contract's real event signatures, `topic0` hashes and error selectors,
+  and no invented transaction hashes.
+- **Walkthrough video:** [`docs/arcsettle-demo.mp4`](docs/arcsettle-demo.mp4), a ~90s narrated
+  tour of the invariant, the redemption defence, the architecture, and the grant roadmap
+  (also on [YouTube](https://youtu.be/ARCSETTLE_VIDEO)).
+- **Demo script:** `DEMO.md`, the recording kit.
 
-![ArcSettle UI](docs/ui.png)
+[![ArcSettle UI](docs/ui.png)](https://doom2quake.github.io/arcsettle/ui/)
 
 ## Cite
 
